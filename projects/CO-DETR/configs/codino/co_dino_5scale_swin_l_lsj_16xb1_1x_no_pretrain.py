@@ -4,11 +4,10 @@ image_size = (1024, 1024)
 batch_augments = [
     dict(type='BatchFixedSizePad', size=image_size, pad_mask=True)
 ]
+
 data_root = '/colon_workspace/real-colon-dataset/real_colon_dataset_coco_fmt_3subsets_poslesion1000_negratio0/'
 # pretrained = 'https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_large_patch4_window12_384_22k.pth'  # noqa
 # load_from = "/colon_workspace/mmdetection/models/co_dino_5scale_lsj_swin_large_1x_coco-3af73af2.pth"
-
-max_epochs = 3
 
 metainfo = {
     'classes': ('lesion', ),
@@ -40,7 +39,7 @@ model = dict(
         # in FPN, otherwise some parameter will not be used
         with_cp=False,
         convert_weights=True,
-        init_cfg=dict(type='Pretrained', checkpoint=pretrained)),
+        init_cfg=None),
     neck=dict(in_channels=[192, 384, 768, 1536]),
     query_head=dict(transformer=dict(encoder=dict(with_cp=6))))
 

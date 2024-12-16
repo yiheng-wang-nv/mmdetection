@@ -1,12 +1,22 @@
 _base_ = 'mmdet::common/ssj_scp_270k_coco-instance.py'
 
+data_root = '/colon_workspace/real-colon-dataset/real_colon_dataset_coco_fmt_3subsets_poslesion1000_negratio0/'
+load_from = "/colon_workspace/mmdetection/models/co_dino_5scale_r50_lsj_8xb2_1x_coco-69a72d67.pth"
+
 custom_imports = dict(
     imports=['projects.CO-DETR.codetr'], allow_failed_imports=False)
 
 # model settings
 num_dec_layer = 6
 loss_lambda = 2.0
-num_classes = 80
+num_classes = 1
+batch_size = 1
+metainfo = {
+    'classes': ('lesion', ),
+    'palette': [
+        (220, 20, 60),
+    ]
+}
 
 image_size = (1024, 1024)
 batch_augments = [
@@ -301,11 +311,17 @@ train_pipeline = [
 ]
 
 train_dataloader = dict(
+    batch_size=batch_size,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         pipeline=train_pipeline,
         dataset=dict(
-            filter_cfg=dict(filter_empty_gt=False), pipeline=load_pipeline)))
+            filter_cfg=dict(filter_empty_gt=False),
+            pipeline=load_pipeline,
+            data_root=data_root,
+            metainfo=metainfo,
+            ann_file=data_root + 'train_ann.json',
+            data_prefix=dict(img=data_root + 'train_images/'))))
 
 # follow ViTDet
 test_pipeline = [
@@ -319,8 +335,13 @@ test_pipeline = [
                    'scale_factor'))
 ]
 
-val_dataloader = dict(dataset=dict(pipeline=test_pipeline))
-test_dataloader = val_dataloader
+val_dataloader = dict(
+    dataset=dict(
+        pipeline=test_pipeline,
+        data_root=data_root,
+        metainfo=metainfo,
+        ann_file=data_root + 'validation_ann.json',
+        data_prefix=dict(img=data_root + 'validation_images/')))
 
 optim_wrapper = dict(
     _delete_=True,
@@ -329,10 +350,35 @@ optim_wrapper = dict(
     clip_grad=dict(max_norm=0.1, norm_type=2),
     paramwise_cfg=dict(custom_keys={'backbone': dict(lr_mult=0.1)}))
 
-val_evaluator = dict(metric='bbox')
-test_evaluator = val_evaluator
+val_evaluator = dict(
+    type='CocoMetric',
+    ann_file=data_root + 'validation_ann.json',
+    metric=['bbox'],
+    format_only=False,
+    backend_args=None)
 
-max_epochs = 12
+test_val = True
+
+if not test_val:
+    test_dataloader = dict(
+        dataset=dict(
+            pipeline=test_pipeline,
+            data_root=data_root,
+            metainfo=metainfo,
+            ann_file=data_root + 'test_ann.json',
+            data_prefix=dict(img=data_root + 'test_images/')))
+
+    test_evaluator = dict(
+        type='CocoMetric',
+        ann_file=data_root + 'test_ann.json',
+        metric=['bbox'],
+        format_only=False,
+        backend_args=None)
+else:
+    test_dataloader = val_dataloader
+    test_evaluator = val_evaluator
+
+max_epochs = 6
 train_cfg = dict(
     _delete_=True,
     type='EpochBasedTrainLoop',
@@ -345,15 +391,15 @@ param_scheduler = [
         begin=0,
         end=max_epochs,
         by_epoch=True,
-        milestones=[11],
+        milestones=[max_epochs - 1],
         gamma=0.1)
 ]
 
 default_hooks = dict(
-    checkpoint=dict(by_epoch=True, interval=1, max_keep_ckpts=3))
+    checkpoint=dict(by_epoch=True, interval=1, max_keep_ckpts=10))
 log_processor = dict(by_epoch=True)
 
 # NOTE: `auto_scale_lr` is for automatically scaling LR,
 # USER SHOULD NOT CHANGE ITS VALUES.
 # base_batch_size = (8 GPUs) x (2 samples per GPU)
-auto_scale_lr = dict(base_batch_size=16)
+auto_scale_lr = dict(enable=True, base_batch_size=16)
